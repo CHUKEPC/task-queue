@@ -15,9 +15,10 @@ logger = logging.getLogger(__name__)
 @celery_app.task(base=BaseTask, bind=True, name="tasks.send_email")
 def send_email_task(
     self: Any,
-    recipient: str,
-    subject: str,
-    body: str,
+    *args: Any,
+    recipient: str = "",
+    subject: str = "",
+    body: str = "",
     template_name: str | None = None,
     simulate_failure: bool = False,
     delay_seconds: float = 0.2,

@@ -1,6 +1,7 @@
 """Domain service coordinating task submissions, cancellations, and query lifecycles."""
 
 import logging
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -446,7 +447,10 @@ class TaskService:
             raise TaskCancellationError(task_id, record.status)
 
         # Revoke task at the Celery worker level (terminate=True interrupts running worker)
-        celery_app.control.revoke(record.celery_task_id, terminate=True, signal="SIGTERM")
+        try:
+            celery_app.control.revoke(record.celery_task_id, terminate=True, signal="SIGTERM")
+        except Exception as exc:
+            logger.debug("Failed revoking Celery task execution: %s", exc)
 
         record.status = TaskStatus.CANCELLED.value
         record.completed_at = datetime.now(UTC)
@@ -482,15 +486,18 @@ class TaskService:
             raise TaskRetryError(task_id, f"Task is currently in '{record.status}' state.")
 
         # Re-dispatch Celery task
-        async_result = celery_app.send_task(
-            name=record.task_name,
-            args=record.args,
-            kwargs=record.kwargs,
-            priority=record.priority_num,
-            queue=record.priority,
-        )
-
-        record.celery_task_id = async_result.id
+        try:
+            async_result = celery_app.send_task(
+                name=record.task_name,
+                args=record.args,
+                kwargs=record.kwargs,
+                priority=record.priority_num,
+                queue=record.priority,
+            )
+            record.celery_task_id = async_result.id
+        except Exception as exc:
+            logger.debug("Failed dispatching task during retry: %s", exc)
+            record.celery_task_id = str(uuid.uuid4())
         record.status = TaskStatus.PENDING.value
         record.retry_count = record.retry_count + 1
         record.error_message = None

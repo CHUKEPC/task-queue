@@ -15,7 +15,8 @@ logger = logging.getLogger(__name__)
 @celery_app.task(base=BaseTask, bind=True, name="tasks.generate_report")
 def generate_report_task(
     self: Any,
-    report_type: str,
+    *args: Any,
+    report_type: str = "sales",
     date_from: str | None = None,
     date_to: str | None = None,
     filters: dict[str, Any] | None = None,

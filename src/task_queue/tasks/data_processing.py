@@ -16,8 +16,9 @@ logger = logging.getLogger(__name__)
 @celery_app.task(base=BaseTask, bind=True, name="tasks.process_data")
 def process_data_task(
     self: Any,
-    dataset_name: str,
-    records: list[dict[str, Any]],
+    *args: Any,
+    dataset_name: str = "dataset",
+    records: list[dict[str, Any]] | None = None,
     operations: list[str] | None = None,
     chunk_size: int = 50,
     delay_seconds: float = 0.2,
@@ -35,10 +36,13 @@ def process_data_task(
     Returns:
         dict[str, Any]: Processing statistics, checksum, and summary.
     """
+    raw_records = (
+        records if records is not None else (args[0] if args and isinstance(args[0], list) else [])
+    )
     logger.info(
         "Processing dataset '%s' with %d records (task_id=%s)",
         dataset_name,
-        len(records),
+        len(raw_records),
         self.request.id,
     )
 
@@ -46,7 +50,7 @@ def process_data_task(
         time.sleep(min(delay_seconds, 5.0))
 
     ops = operations or ["clean", "aggregate", "summarize"]
-    current_records = [dict(r) for r in records]
+    current_records = [dict(r) for r in raw_records]
     cleaned_count = 0
     duplicates_removed = 0
 
@@ -95,7 +99,7 @@ def process_data_task(
 
     return {
         "dataset_name": dataset_name,
-        "input_count": len(records),
+        "input_count": len(raw_records),
         "output_count": len(current_records),
         "cleaned_count": cleaned_count,
         "duplicates_removed": duplicates_removed,

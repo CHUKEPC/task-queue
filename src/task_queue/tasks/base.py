@@ -53,7 +53,12 @@ def update_task_record_sync(
             if completed:
                 record.completed_at = now
                 if record.started_at:
-                    record.duration_seconds = max(0.0, (now - record.started_at).total_seconds())
+                    started_at = (
+                        record.started_at.replace(tzinfo=UTC)
+                        if record.started_at.tzinfo is None
+                        else record.started_at
+                    )
+                    record.duration_seconds = max(0.0, (now - started_at).total_seconds())
 
             if result is not None:
                 record.result = result
@@ -92,7 +97,7 @@ class BaseTask(Task):  # type: ignore[misc]
     """Base Celery task configuring automatic retry policies and DB lifecycle hooks."""
 
     abstract = True
-    autoretry_for = (Exception,)
+    autoretry_for = (RuntimeError, ConnectionError, OSError)
     max_retries = 3
     retry_backoff = True
     retry_backoff_max = 600
